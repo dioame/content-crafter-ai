@@ -92,8 +92,10 @@ def write_assignments(selected_articles):
         with open('assignments.txt', 'w') as file:
             for article in selected_articles:
                 cell = article.get("cell", "")
-                title = article.get("title", "")
-                file.write(f"{cell} {title}\n")
+
+                #in case we add the content next update
+                # title = article.get("title", "")
+                file.write(f"{cell}\n")
     except Exception as e:
         print(f"Error writing assignments: {e}")
 
@@ -108,25 +110,88 @@ def read_article_content(sheet_id, cell_reference):
         print(f"Error reading article content: {e}")
         return ""
 
-# Function to rewrite article using OpenAI o3 model
-def rewrite_article(content, prompt_file):
+
+
+
+# Function to read content from specific Google Sheets cells
+def get_article_content(sheet_id, cells):
     try:
-        with open(prompt_file, 'r') as file:
-            prompt = file.read()
-
-        messages = [{"role": "system", "content": "You are a helpful assistant."}]
-        messages.append({"role": "user", "content": prompt + "\n" + content})
-
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Or gpt-4 if needed
-            messages=messages,
-            max_tokens=500
-        )
+        print(f"Processing: {cells}")  # Print out the cells to check if it's correct
         
-        return response['choices'][0]['message']['content'].strip()
+        # Open the Google Sheet using the sheet ID
+        sheet = client.open_by_key(sheet_id)
+
+        # Open the first worksheet (you can modify to select another if needed)
+        worksheet = sheet.get_worksheet(0)
+
+        # Fetch content from the specified cells
+        content = []
+        
+        if not isinstance(cells, list):
+            print("Error: 'cells' parameter should be a list of cell references.")
+            return []
+        
+        for cell in cells:
+            # Check if cell is a valid string like 'A1', 'B2', etc.
+            if not isinstance(cell, str):
+                print(f"Error: Invalid cell reference {cell}, expected a string like 'A1'.")
+                continue
+            
+            # Fetch the cell content
+            cell_content = worksheet.acell(cell).value  # Get the value of the cell
+     
+        # Return the content of the specified cells
+        return cell_content
+
     except Exception as e:
-        print(f"Error rewriting article: {e}")
-        return ""
+        print(f"Error reading content from Google Sheets: {e}")
+        return []
+
+
+
+
+# Function to rewrite the article using OpenAI's API
+def rewrite_article(sheet_id, cells, prompt_file):
+    print("--rewrite_article function--")
+    
+    # try:
+    #     # Get content from the specified cells
+    #     content = get_article_content(sheet_id, cells)
+        
+    #     # If content is empty, return an empty string
+    #     if not content:
+    #         return ""
+        
+    #     # Read the prompt from the file
+    #     with open(prompt_file, 'r') as file:
+    #         prompt = file.read().strip()
+
+    #     # Combine the prompt and article content
+    #     full_prompt = f"{prompt}\n\nContent:\n" + "\n".join(content)
+        
+    #     # Prepare the messages for the OpenAI API
+    #     messages = [{"role": "system", "content": "You are a helpful assistant."}]
+    #     messages.append({"role": "user", "content": full_prompt})
+
+    #     # Make the API call to rewrite the article
+    #     response = openai.ChatCompletion.create(
+    #         model="gpt-3.5-turbo",  # You can use "gpt-4" for higher quality if needed
+    #         messages=messages,
+    #         max_tokens=500
+    #     )
+        
+    #     # Get the rewritten content from the response
+    #     rewritten_content = response['choices'][0]['message']['content'].strip()
+        
+    #     # Write the rewritten content back to the prompt file
+    #     with open(prompt_file, 'w') as file:
+    #         file.write(rewritten_content)
+        
+    #     return rewritten_content
+    # except Exception as e:
+    #     print(f"Error rewriting article: {e}")
+    #     return ""
+
 
 # Function to generate image using GPT-4o
 def generate_image(description):
@@ -174,32 +239,84 @@ def upload_to_wordpress(title, content, image_url):
     except Exception as e:
         print(f"Error uploading to WordPress: {e}")
 
+
+def clean_assignments(assignments):
+    print(f"RAW Assignment: {assignments}")
+    # Strip the newlines and extra spaces, and wrap each cell reference in a list
+    cleaned_assignments = [[assignment.strip()] for assignment in assignments]
+    return cleaned_assignments
+
+
+def write_content(content, filename):
+    try:
+        # Ensure content ends with a newline for separation
+        if not content.endswith("\n"):
+            content += "\n"
+        
+        # Check if the file exists
+        if os.path.exists(filename):
+            # Append if the file exists
+            with open(filename, 'a') as file:
+                file.write(content)
+            print(f"Content successfully appended to {filename}")
+        else:
+            # Write if the file does not exist
+            with open(filename, 'w') as file:
+                file.write(content)
+            print(f"Content successfully written to {filename}")
+    except Exception as e:
+        print(f"Error writing content to file: {e}")
+
+
 # Main function
 def main():
-    titles = read_article_titles(config['google_sheets']['sheet_id'], 'Sheet1')
-    selected_articles = select_articles(titles, 'prompt.txt')
 
-    # write to assignment.txt
+    # print(f"config: sheetID [{config['google_sheets']['sheet_id']}]")
+
+    # # Read titles from the sheet
+    # titles = read_article_titles(config['google_sheets']['sheet_id'], 'Sheet1')
+    # selected_articles = select_articles(titles, 'prompt.txt')
+
+    selected_articles = [{'cell': 'A2', 'title': 'How to improve SEO for websites'}, {'cell': 'A4', 'title': 'Understanding Python decorators'}]
+
+    # Write selected articles to assignments.txt
     write_assignments(selected_articles)
+   
+    print("--selected_articles--")
     print(selected_articles)
 
+
     # Step 2: Article Writing
-    # with open('assignments.txt', 'r') as file:
-    #     assignments = file.readlines()
+    with open('assignments.txt', 'r') as file:
+        assignments = file.readlines()
 
-    # for assignment in assignments:
-    #     content = read_article_content(config['google_sheets']['sheet_id'], assignment.strip())
-        # rewritten_content = rewrite_article(content, 'prompt2.txt')
-        # image_description = "Generated image description"  # Placeholder
-        # image_url = generate_image(image_description)
+    print("--iterate assignment--")
+    assignments = clean_assignments(assignments)
+    print(assignments)
+    
+    for assignment in assignments:
+        content = get_article_content(config['google_sheets']['sheet_id'],assignment)
+        write_content(content, "prompt2.txt")
+        
+    #     # Output assignment details
 
-        # # Step 4: WordPress Upload
-        # upload_to_wordpress("Generated Title", rewritten_content, image_url)
 
-        # # Remove processed assignment
-        # assignments.remove(assignment)
-        # with open('assignments.txt', 'w') as file:
-        #     file.writelines(assignments)
+    #     # Rewrite the article using OpenAI with the prompt from prompt2.txt
+    #     rewritten_content = rewrite_article(config['google_sheets']['sheet_id'], [assignment['cell']], 'prompt2.txt')
+        
+    #     # Output the rewritten content for further use (e.g., uploading, saving, etc.)
+    #     print(f"Rewritten Article for:\n{rewritten_content}\n")
+
+    #     # image_description = "Generated image description"  # Placeholder
+    #     # image_url = generate_image(image_description)
+
+    #     # # Step 4: WordPress Upload
+    #     # upload_to_wordpress("Generated Title", rewritten_content, image_url)
+
+    #     # # Remove processed assignment
+    #     # assignments.remove(assignment)
+    #     # with open('assignments.txt', 'w') as file:
+    #     #     file.writelines(assignments)
 
 if __name__ == "__main__":
     main()

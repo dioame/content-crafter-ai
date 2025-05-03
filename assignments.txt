@@ -1,2 +1,2 @@
-A2 How to improve SEO for websites
-A4 Understanding Python decorators
+A2
+A4
