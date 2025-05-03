@@ -37,36 +37,53 @@ def read_article_titles(sheet_id, range_name):
 
 
 # Function to select articles using OpenAI o3 model
-def select_articles(titles, prompt):
+def select_articles(titles_with_cells, prompt):
     try:
-        # Prepare the messages for the API request
-        messages = [{"role": "system", "content": "You are a helpful assistant."}]
-        
-        # Include an explicit instruction to select the most relevant articles
-        prompt = f"{prompt}\n\nPlease select the most relevant articles from the list below:\n" + "\n".join([f"{i+1}. {title}" for i, title in enumerate(titles)])
+        # Create a simple list of titles to send to the LLM
+        plain_titles = [item["title"] for item in titles_with_cells]
 
-        messages.append({"role": "user", "content": prompt})
+        # Prepare messages
+        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        full_prompt = f"{prompt}\n\nPlease select the most relevant articles from the list below:\n" + \
+                      "\n".join([f"{i+1}. {title}" for i, title in enumerate(plain_titles)])
+        messages.append({"role": "user", "content": full_prompt})
 
         # Call the OpenAI Chat API
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Use the appropriate model
+            model="gpt-3.5-turbo",
             messages=messages,
-            max_tokens=150
+            max_tokens=200
         )
-        
-        # Get the assistant's response (which should be a list of article titles)
-        selected_articles = response['choices'][0]['message']['content'].strip()
-        
-        # If it's a comma-separated list of article titles, split them
-        selected_articles = [article.strip() for article in selected_articles.split(',')]
-        
-        # Filter out any empty or malformed articles
-        selected_articles = [article for article in selected_articles if article]
-        
-        return selected_articles
+
+        # Get and clean the assistant's response
+        content = response['choices'][0]['message']['content'].strip()
+
+        # Try to extract titles from numbered or bulleted list
+        lines = content.split('\n')
+        selected_titles = []
+        for line in lines:
+            # Handle lines like "1. Article Title" or "- Article Title"
+            parts = line.split('. ', 1)
+            if len(parts) == 2:
+                selected_titles.append(parts[1].strip())
+            else:
+                # Fallback if no numbering
+                line = line.lstrip("-•").strip()
+                if line:
+                    selected_titles.append(line)
+
+        # Match back to original titles with cells
+        selected_with_cells = []
+        for title in selected_titles:
+            match = next((item for item in titles_with_cells if item["title"].strip().lower() == title.lower()), None)
+            if match:
+                selected_with_cells.append(match)
+
+        return selected_with_cells
     except Exception as e:
         print(f"Error selecting articles: {e}")
         return []
+
 
 
 # Function to write selected articles to assignments.txt
@@ -74,7 +91,9 @@ def write_assignments(selected_articles):
     try:
         with open('assignments.txt', 'w') as file:
             for article in selected_articles:
-                file.write(f"{article}\n")
+                cell = article.get("cell", "")
+                title = article.get("title", "")
+                file.write(f"{cell} {title}\n")
     except Exception as e:
         print(f"Error writing assignments: {e}")
 
