@@ -299,7 +299,7 @@ def upload_to_wordpress(title, content, image_url):
 # Main function
 def main():
 
-    Read titles from the sheet
+    # Read titles from the sheet
     titles = read_article_titles(config['google_sheets']['sheet_id'], 'Sheet1')
     selected_articles = select_articles(titles, 'prompt.txt')
 
