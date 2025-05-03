@@ -1,12 +1,7 @@
+
 {
     "google_sheets": {
-      "credentials_file": "google-credentials.json",
-      "sheet_id": "1wAcyu0eY1xk7oGGMlWUalPREB5TNi9ufu60DtJWgWWQ"
-    },
-    "wordpress": {
-      "url": "https://your-wordpress-site.com",
-      "username": "your-username",
-      "password": "your-application-password-or-api-token"
+        "credentials_file": "google-credentials.json",
+        "sheet_id": "1wAcyu0eY1xk7oGGMlWUalPREB5TNi9ufu60DtJWgWWQ"
     }
-  }
-  
+}

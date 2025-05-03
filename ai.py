@@ -4,6 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import openai
 import requests
 import os
+import base64
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -206,43 +207,6 @@ def generate_image(description):
     
     return response['data'][0]['url']
 
-# Function to upload articles to WordPress
-def upload_to_wordpress(title, content, image_url):
-    try:
-        # Upload image to WordPress
-        media_url = config['wordpress']['url'] + '/wp-json/wp/v2/media'
-        media_data = {
-            'file': image_url,
-            'title': title,
-            'alt_text': title
-        }
-        media_headers = {
-            'Authorization': f"Basic {config['wordpress']['username']}:{config['wordpress']['password']}"
-        }
-        media_response = requests.post(media_url, files=media_data, headers=media_headers)
-        if media_response.status_code == 201:
-            media_id = media_response.json()['id']
-            print(f"Image uploaded successfully with ID: {media_id}")
-        else:
-            print(f"Failed to upload image. Status code: {media_response.status_code}")
-            return
-
-        # Create post with image
-        post_url = config['wordpress']['url'] + '/wp-json/wp/v2/posts'
-        post_data = {
-            'title': title,
-            'content': content,
-            'status': 'publish',
-            'featured_media': media_id
-        }
-        post_response = requests.post(post_url, json=post_data, headers=media_headers)
-        if post_response.status_code == 201:
-            print(f"Article '{title}' uploaded successfully.")
-        else:
-            print(f"Failed to upload article '{title}'. Status code: {post_response.status_code}")
-    except Exception as e:
-        print(f"Error uploading to WordPress: {e}")
-
 
 def clean_assignments(assignments):
     print(f"RAW Assignment: {assignments}")
@@ -276,45 +240,101 @@ def clear_file_content(file):
     with open(file, 'w') as file:
         file.truncate(0)  # Clears the content of the file
 
+
+# Function to upload articles to WordPress
+def upload_to_wordpress(title, content, image_url):
+    try:
+        # Encode the username and password in base64 for Basic Authentication
+        username = os.getenv("WORDPRESS_API_USERNAME")
+        password = os.getenv("WORDPRESS_API_PASSWORD")
+        credentials = f"{username}:{password}"
+        encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+
+        # Download image from the URL
+        image_response = requests.get(image_url)
+        if image_response.status_code != 200:
+            print(f"Failed to download image. Status code: {image_response.status_code}")
+            return
+        
+        # Upload image to WordPress
+        media_url = os.getenv("WORDPRESS_API_URL") + '/wp-json/wp/v2/media'
+        media_headers = {
+            'Authorization': f"Basic {encoded_credentials}"
+        }
+
+        # Prepare the image data
+        media_data = {
+            'file': ('image.jpg', image_response.content, 'image/jpeg'),  # Assuming it's a JPG image
+            'title': title,
+            'alt_text': title
+        }
+
+        # Send image data to WordPress media endpoint
+        media_response = requests.post(media_url, files=media_data, headers=media_headers)
+
+        if media_response.status_code == 201:
+            media_id = media_response.json()['id']
+            print(f"Image uploaded successfully with ID: {media_id}")
+        else:
+            print(f"Failed to upload image. Status code: {media_response.status_code}")
+            return
+
+        # Create post with image
+        post_url = os.getenv("WORDPRESS_API_URL") + '/wp-json/wp/v2/posts'
+        post_data = {
+            'title': title,
+            'content': content,
+            'status': 'publish',
+            'featured_image': media_id
+        }
+        post_response = requests.post(post_url, json=post_data, headers=media_headers)
+        if post_response.status_code == 201:
+            print(f"Article '{title}' uploaded successfully.")
+        else:
+            print(f"Failed to upload article '{title}'. Status code: {post_response.status_code}")
+    except Exception as e:
+        print(f"Error uploading to WordPress: {e}")
+
+
 # Main function
 def main():
 
-    # # Read titles from the sheet
-    # titles = read_article_titles(config['google_sheets']['sheet_id'], 'Sheet1')
-    # selected_articles = select_articles(titles, 'prompt.txt')
+    Read titles from the sheet
+    titles = read_article_titles(config['google_sheets']['sheet_id'], 'Sheet1')
+    selected_articles = select_articles(titles, 'prompt.txt')
 
-    # selected_articles = [{'cell': 'A2', 'title': 'How to improve SEO for websites'}, {'cell': 'A4', 'title': 'Understanding Python decorators'}]
+    if not selected_articles:
+        print("Error: No articles were selected. Exiting.")
+        exit()  # Or handle the error as appropriate
 
-    # # Write selected articles to assignments.txt
-    # write_assignments(selected_articles)
+    # Write selected articles to assignments.txt
+    write_assignments(selected_articles)
    
-    # print("--selected_articles--")
-    # print(selected_articles)
+    print("--selected_articles--")
+    print(selected_articles)
 
 
-    # # Step 2: Article Writing
-    # with open('assignments.txt', 'r') as file:
-    #     assignments = file.readlines()
+    # Step 2: Article Writing
+    with open('assignments.txt', 'r') as file:
+        assignments = file.readlines()
 
-    # print("--iterate assignment--")
-    # assignments = clean_assignments(assignments)
-    # print(assignments)
+    print("--iterate assignment--")
+    assignments = clean_assignments(assignments)
+    print(assignments)
     
-    # clear_file_content("prompt2.txt")
-    # for assignment in assignments:
-    #     content = get_article_content(config['google_sheets']['sheet_id'],assignment)
-    #     write_content(content, "prompt2.txt")
+    clear_file_content("prompt2.txt")
+    for assignment in assignments:
+        content = get_article_content(config['google_sheets']['sheet_id'],assignment)
+        write_content(content, "prompt2.txt")
     
     new_articles = rewrite_article("prompt2.txt")
-    
-    # Testing only
-    print("-- Created New Articles on File --")
-    clear_file_content("articles.txt")
-    write_content(new_articles, "articles.txt")
 
     image_url = generate_image(new_articles)
 
     print(image_url)
+
+    upload_to_wordpress("New Articles",new_articles,image_url)
+    print("Successfully Uploaded to Wordpress")
 
 if __name__ == "__main__":
     main()
