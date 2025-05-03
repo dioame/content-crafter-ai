@@ -22,16 +22,19 @@ client = gspread.authorize(creds)
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # Function to read article titles from Google Sheets
+
 def read_article_titles(sheet_id, range_name):
     try:
         sheet = client.open_by_key(sheet_id)
         worksheet = sheet.worksheet(range_name)
-        titles = worksheet.col_values(1)  # Assuming titles are in Column A
-        print(f"Google Sheet Articles: {titles}")
-        return titles
+        titles = worksheet.col_values(1)  # Column A
+        locations_and_titles = [{"cell": f"A{i+1}", "title": title} for i, title in enumerate(titles)]
+        print(f"Google Sheet Articles with Locations: {locations_and_titles}")
+        return locations_and_titles
     except Exception as e:
         print(f"Error reading article titles: {e}")
         return []
+
 
 # Function to select articles using OpenAI o3 model
 def select_articles(titles, prompt):
@@ -162,22 +165,22 @@ def main():
     print(selected_articles)
 
     # Step 2: Article Writing
-    with open('assignments.txt', 'r') as file:
-        assignments = file.readlines()
+    # with open('assignments.txt', 'r') as file:
+    #     assignments = file.readlines()
 
-    for assignment in assignments:
-        content = read_article_content(config['google_sheets']['sheet_id'], assignment.strip())
-        rewritten_content = rewrite_article(content, 'prompt2.txt')
-        image_description = "Generated image description"  # Placeholder
-        image_url = generate_image(image_description)
+    # for assignment in assignments:
+    #     content = read_article_content(config['google_sheets']['sheet_id'], assignment.strip())
+        # rewritten_content = rewrite_article(content, 'prompt2.txt')
+        # image_description = "Generated image description"  # Placeholder
+        # image_url = generate_image(image_description)
 
-        # Step 4: WordPress Upload
-        upload_to_wordpress("Generated Title", rewritten_content, image_url)
+        # # Step 4: WordPress Upload
+        # upload_to_wordpress("Generated Title", rewritten_content, image_url)
 
-        # Remove processed assignment
-        assignments.remove(assignment)
-        with open('assignments.txt', 'w') as file:
-            file.writelines(assignments)
+        # # Remove processed assignment
+        # assignments.remove(assignment)
+        # with open('assignments.txt', 'w') as file:
+        #     file.writelines(assignments)
 
 if __name__ == "__main__":
     main()
