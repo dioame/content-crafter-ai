@@ -148,59 +148,63 @@ def get_article_content(sheet_id, cells):
         return []
 
 
+def rewrite_article(prompt_file):
+    try:
+        # Step 1: Read each line (article) from the prompt file
+        with open(prompt_file, 'r') as file:
+            articles = [line.strip() for line in file if line.strip()]
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return []
 
+    # Step 2: Define the fixed prompt instruction
+    prompt_instruction = (
+        "Rewrite the following combined articles into a new, engaging, and clear style. "
+        "Give it a new, attention-grabbing title. "
+        "Then add a short paragraph with personal insights or reflections about the topics, "
+        "making sure the article flows naturally. "
+        "Limit the article to 500 characters."
+    )
 
-# Function to rewrite the article using OpenAI's API
-def rewrite_article(sheet_id, cells, prompt_file):
-    print("--rewrite_article function--")
+    # Combine the articles for a new prompt
+    combined_articles = "\n\n".join(articles)
+
+    rewritten_results = []
+
+    # Step 3: Send the combined article to GPT-4o
+    full_prompt = f"{prompt_instruction}\n\nCombined Articles:\n{combined_articles}"
     
-    # try:
-    #     # Get content from the specified cells
-    #     content = get_article_content(sheet_id, cells)
-        
-    #     # If content is empty, return an empty string
-    #     if not content:
-    #         return ""
-        
-    #     # Read the prompt from the file
-    #     with open(prompt_file, 'r') as file:
-    #         prompt = file.read().strip()
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that rewrites articles with new titles and personal insight."},
+                {"role": "user", "content": full_prompt}
+            ],
+            temperature=0.7
+        )
+        rewritten = response['choices'][0]['message']['content']
+        rewritten_results.append(rewritten)
+    except Exception as e:
+        print(f"Error rewriting articles: {e}")
+    
+    return rewritten
 
-    #     # Combine the prompt and article content
-    #     full_prompt = f"{prompt}\n\nContent:\n" + "\n".join(content)
-        
-    #     # Prepare the messages for the OpenAI API
-    #     messages = [{"role": "system", "content": "You are a helpful assistant."}]
-    #     messages.append({"role": "user", "content": full_prompt})
-
-    #     # Make the API call to rewrite the article
-    #     response = openai.ChatCompletion.create(
-    #         model="gpt-3.5-turbo",  # You can use "gpt-4" for higher quality if needed
-    #         messages=messages,
-    #         max_tokens=500
-    #     )
-        
-    #     # Get the rewritten content from the response
-    #     rewritten_content = response['choices'][0]['message']['content'].strip()
-        
-    #     # Write the rewritten content back to the prompt file
-    #     with open(prompt_file, 'w') as file:
-    #         file.write(rewritten_content)
-        
-    #     return rewritten_content
-    # except Exception as e:
-    #     print(f"Error rewriting article: {e}")
-    #     return ""
 
 
 # Function to generate image using GPT-4o
 def generate_image(description):
-    try:
-        # Placeholder for GPT-4o API call
-        return "image_url_placeholder"
-    except Exception as e:
-        print(f"Error generating image: {e}")
-        return ""
+    # Use GPT-4's advanced image generation capabilities
+    refined_prompt = f"Generate an image that strictly follows this description: '{description}'"
+    
+    # Request image generation using DALL·E model (GPT-4 powered image generation)
+    response = openai.Image.create(
+        prompt=refined_prompt,
+        n=1,
+        size="1024x1024"  # Options: "256x256", "512x512", "1024x1024"
+    )
+    
+    return response['data'][0]['url']
 
 # Function to upload articles to WordPress
 def upload_to_wordpress(title, content, image_url):
@@ -268,55 +272,49 @@ def write_content(content, filename):
         print(f"Error writing content to file: {e}")
 
 
+def clear_file_content(file):
+    with open(file, 'w') as file:
+        file.truncate(0)  # Clears the content of the file
+
 # Main function
 def main():
-
-    # print(f"config: sheetID [{config['google_sheets']['sheet_id']}]")
 
     # # Read titles from the sheet
     # titles = read_article_titles(config['google_sheets']['sheet_id'], 'Sheet1')
     # selected_articles = select_articles(titles, 'prompt.txt')
 
-    selected_articles = [{'cell': 'A2', 'title': 'How to improve SEO for websites'}, {'cell': 'A4', 'title': 'Understanding Python decorators'}]
+    # selected_articles = [{'cell': 'A2', 'title': 'How to improve SEO for websites'}, {'cell': 'A4', 'title': 'Understanding Python decorators'}]
 
-    # Write selected articles to assignments.txt
-    write_assignments(selected_articles)
+    # # Write selected articles to assignments.txt
+    # write_assignments(selected_articles)
    
-    print("--selected_articles--")
-    print(selected_articles)
+    # print("--selected_articles--")
+    # print(selected_articles)
 
 
-    # Step 2: Article Writing
-    with open('assignments.txt', 'r') as file:
-        assignments = file.readlines()
+    # # Step 2: Article Writing
+    # with open('assignments.txt', 'r') as file:
+    #     assignments = file.readlines()
 
-    print("--iterate assignment--")
-    assignments = clean_assignments(assignments)
-    print(assignments)
+    # print("--iterate assignment--")
+    # assignments = clean_assignments(assignments)
+    # print(assignments)
     
-    for assignment in assignments:
-        content = get_article_content(config['google_sheets']['sheet_id'],assignment)
-        write_content(content, "prompt2.txt")
-        
-    #     # Output assignment details
+    # clear_file_content("prompt2.txt")
+    # for assignment in assignments:
+    #     content = get_article_content(config['google_sheets']['sheet_id'],assignment)
+    #     write_content(content, "prompt2.txt")
+    
+    new_articles = rewrite_article("prompt2.txt")
+    
+    # Testing only
+    print("-- Created New Articles on File --")
+    clear_file_content("articles.txt")
+    write_content(new_articles, "articles.txt")
 
+    image_url = generate_image(new_articles)
 
-    #     # Rewrite the article using OpenAI with the prompt from prompt2.txt
-    #     rewritten_content = rewrite_article(config['google_sheets']['sheet_id'], [assignment['cell']], 'prompt2.txt')
-        
-    #     # Output the rewritten content for further use (e.g., uploading, saving, etc.)
-    #     print(f"Rewritten Article for:\n{rewritten_content}\n")
-
-    #     # image_description = "Generated image description"  # Placeholder
-    #     # image_url = generate_image(image_description)
-
-    #     # # Step 4: WordPress Upload
-    #     # upload_to_wordpress("Generated Title", rewritten_content, image_url)
-
-    #     # # Remove processed assignment
-    #     # assignments.remove(assignment)
-    #     # with open('assignments.txt', 'w') as file:
-    #     #     file.writelines(assignments)
+    print(image_url)
 
 if __name__ == "__main__":
     main()
